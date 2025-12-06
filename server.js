@@ -9,6 +9,11 @@ app.use(express.json());
 
 // Get video/audio info using yt-dlp-exec
 async function getVideoInfo(videoUrl) {
+    // Check for Shorts or restricted URLs
+    if (videoUrl.includes("/shorts/")) {
+        throw "Shorts videos may not be supported on deployed servers.";
+    }
+
     try {
         const info = await ytdlp(videoUrl, {
             dumpSingleJson: true,
@@ -17,12 +22,11 @@ async function getVideoInfo(videoUrl) {
             format: "bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4",
         });
 
-        // Best video-only mp4
+        // Filter best video and audio
         const bestVideo = info.formats
             .filter(f => f.vcodec !== "none" && f.ext === "mp4")
             .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
 
-        // Best audio-only m4a
         const bestAudio = info.formats
             .filter(f => f.vcodec === "none" && f.ext === "m4a")
             .sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
@@ -35,8 +39,8 @@ async function getVideoInfo(videoUrl) {
         };
 
     } catch (err) {
-        console.error("YT-DLP Exec Error:", err);
-        throw err.toString();
+        console.error("YT-DLP Error:", err);
+        throw "Failed to fetch video info. Video may be restricted or not public.";
     }
 }
 
@@ -49,7 +53,7 @@ app.get("/download-info", async (req, res) => {
         const data = await getVideoInfo(videoUrl);
         res.json(data);
     } catch (err) {
-        res.status(500).json({ error: err.toString() });
+        res.status(500).json({ error: err });
     }
 });
 
